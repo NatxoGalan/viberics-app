@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "106851477967",
+    "project_id": "viberics-e5dbb",
+    "storage_bucket": "viberics-e5dbb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:106851477967:android:fd0eaa907058071b99caba",
+        "android_client_info": {
+          "package_name": "com.example.viberics_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqeAyaxETNVrQyak_4Gx5T8uLQWs0IktE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
