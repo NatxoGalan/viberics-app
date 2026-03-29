@@ -1,17 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_table_screen.dart';
-import 'log_screen.dart'; // Importamos la nueva pantalla de log
+import 'log_screen.dart'; 
 import 'table_detail_screen.dart';
 
-class TableManagementScreen extends StatelessWidget {
+class TableManagementScreen extends StatefulWidget {
   const TableManagementScreen({super.key});
+
+  @override
+  State<TableManagementScreen> createState() => _TableManagementScreenState();
+}
+
+class _TableManagementScreenState extends State<TableManagementScreen> {
+  // 1. Creamos una variable para guardar el Stream
+  late Stream<QuerySnapshot> _mesasStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Iniciamos la conexión a Firebase UNA SOLA VEZ cuando se abre la pantalla
+    _mesasStream = FirebaseFirestore.instance.collection('mesas').snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('mesas').snapshots(),
+        // 3. Usamos la variable guardada en lugar de llamar a Firebase aquí
+        stream: _mesasStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -62,7 +78,7 @@ class TableManagementScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(8.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch, // Para alinear el botón
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
                           tableName,
@@ -91,8 +107,7 @@ class TableManagementScreen extends StatelessWidget {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        const Spacer(), // Ocupa el espacio restante
-                        // --- BOTÓN PARA VER EL HISTORIAL ---
+                        const Spacer(),
                         Align(
                           alignment: Alignment.bottomRight,
                           child: IconButton(

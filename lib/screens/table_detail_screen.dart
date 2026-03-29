@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'select_product_screen.dart';
 
-class TableDetailScreen extends StatelessWidget {
+class TableDetailScreen extends StatefulWidget {
   final String tableId;
   final String tableName;
 
@@ -13,10 +13,27 @@ class TableDetailScreen extends StatelessWidget {
     required this.tableName,
   });
 
+  @override
+  State<TableDetailScreen> createState() => _TableDetailScreenState();
+}
+
+class _TableDetailScreenState extends State<TableDetailScreen> {
+  // 1. Aquí guardaremos nuestra conexión segura de 1 sola lectura
+  late Stream<DocumentSnapshot> _tableStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Se ejecuta UNA SOLA VEZ al abrir la comanda de la mesa
+    _tableStream = FirebaseFirestore.instance
+        .collection('mesas')
+        .doc(widget.tableId) // Fíjate que ahora es widget.tableId
+        .snapshots();
+  }
+
   Future<void> _updateItem(String itemName, {int? quantityChange, bool deleteItem = false}) async {
-    // ... (Tu código original sin cambios)
     final firestore = FirebaseFirestore.instance;
-    final tableRef = firestore.collection('mesas').doc(tableId);
+    final tableRef = firestore.collection('mesas').doc(widget.tableId);
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Desconocido';
     String actionLog;
 
@@ -40,7 +57,7 @@ class TableDetailScreen extends StatelessWidget {
             actionLog = 'Eliminó de la comanda';
           }
         } else {
-          return; // No action needed
+          return; 
         }
 
         double newTotal = 0.0;
@@ -64,8 +81,7 @@ class TableDetailScreen extends StatelessWidget {
   }
 
   Future<void> _updateItemPrice(BuildContext context, String itemName) async {
-    // ... (Tu código original sin cambios)
-     final firestore = FirebaseFirestore.instance;
+    final firestore = FirebaseFirestore.instance;
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Desconocido';
 
     try {
@@ -76,16 +92,18 @@ class TableDetailScreen extends StatelessWidget {
           .get();
 
       if (productQuery.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$itemName" ya no se encuentra en la carta.')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$itemName" ya no se encuentra en la carta.')),
+          );
+        }
         return;
       }
 
       final newPrice = (productQuery.docs.first.data()['precio'] as num).toDouble();
 
       await firestore.runTransaction((transaction) async {
-        final tableRef = firestore.collection('mesas').doc(tableId);
+        final tableRef = firestore.collection('mesas').doc(widget.tableId);
         final tableSnapshot = await transaction.get(tableRef);
         if (!tableSnapshot.exists) throw Exception("La mesa no existe!");
 
@@ -114,18 +132,20 @@ class TableDetailScreen extends StatelessWidget {
         transaction.update(tableRef, {'items': items, 'total': newTotal});
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Precio de "$itemName" actualizado.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Precio de "$itemName" actualizado.')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al actualizar: $e')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar: $e')),
+        );
+      }
     }
   }
   
-  // --- FUNCIÓN NUEVA AÑADIDA AQUÍ ---
-  // Vacía la comanda y el historial, pero no borra la mesa del plano.
   Future<void> _emptyTable(BuildContext context) async {
     final bool? confirmEmpty = await showDialog<bool>(
       context: context,
@@ -151,31 +171,27 @@ class TableDetailScreen extends StatelessWidget {
     if (confirmEmpty == true) {
       try {
         final firestore = FirebaseFirestore.instance;
-        final tableRef = firestore.collection('mesas').doc(tableId);
+        final tableRef = firestore.collection('mesas').doc(widget.tableId);
         final logCollectionRef = tableRef.collection('log');
 
-        // Usamos un batch para realizar ambas operaciones a la vez
         final batch = firestore.batch();
 
-        // 1. Borrar todos los documentos del log
         final logSnapshot = await logCollectionRef.get();
         for (final doc in logSnapshot.docs) {
           batch.delete(doc.reference);
         }
 
-        // 2. Actualizar la mesa para vaciarla
         batch.update(tableRef, {
           'items': {},
           'total': 0.0,
           'estado': 'Libre',
         });
 
-        // Ejecutar todas las operaciones
         await batch.commit();
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Mesa "$tableName" vaciada correctamente.')),
+            SnackBar(content: Text('Mesa "${widget.tableName}" vaciada correctamente.')),
           );
         }
       } catch (e) {
@@ -189,7 +205,6 @@ class TableDetailScreen extends StatelessWidget {
   }
 
   Future<void> _deleteTable(BuildContext context) async {
-    // ... (Tu código original sin cambios)
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -214,26 +229,23 @@ class TableDetailScreen extends StatelessWidget {
     if (confirmDelete == true) {
       try {
         final firestore = FirebaseFirestore.instance;
-        final tableRef = firestore.collection('mesas').doc(tableId);
+        final tableRef = firestore.collection('mesas').doc(widget.tableId);
         final logCollectionRef = tableRef.collection('log');
 
-        // Borrar todos los documentos del log en un batch
         final logSnapshot = await logCollectionRef.get();
         final batch = firestore.batch();
         for (final doc in logSnapshot.docs) {
           batch.delete(doc.reference);
         }
 
-        // Borrar la mesa principal
         batch.delete(tableRef);
 
-        // Ejecutar todas las operaciones de borrado
         await batch.commit();
 
         if (context.mounted) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Mesa "$tableName" eliminada.')),
+            SnackBar(content: Text('Mesa "${widget.tableName}" eliminada.')),
           );
         }
       } catch (e) {
@@ -248,20 +260,18 @@ class TableDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final DocumentReference tableRef =
-        FirebaseFirestore.instance.collection('mesas').doc(tableId);
-
     return StreamBuilder<DocumentSnapshot>(
-      stream: tableRef.snapshots(),
+      // 3. Usamos la variable en lugar de llamar a Firebase aquí
+      stream: _tableStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-              appBar: AppBar(title: Text('Comanda: $tableName')),
+              appBar: AppBar(title: Text('Comanda: ${widget.tableName}')),
               body: const Center(child: CircularProgressIndicator()));
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return Scaffold(
-              appBar: AppBar(title: Text('Comanda: $tableName')),
+              appBar: AppBar(title: Text('Comanda: ${widget.tableName}')),
               body: const Center(child: Text('Esta mesa ya no existe.')));
         }
 
@@ -293,8 +303,7 @@ class TableDetailScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Comanda: $tableName'),
-            // --- CAMBIO AQUÍ: Añadido el botón de vaciar mesa ---
+            title: Text('Comanda: ${widget.tableName}'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.delete_sweep_outlined, color: Colors.orange),
@@ -382,7 +391,7 @@ class TableDetailScreen extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => SelectProductScreen(tableId: tableId),
+                  builder: (context) => SelectProductScreen(tableId: widget.tableId),
                 ),
               );
             },

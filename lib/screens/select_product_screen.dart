@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // <-- 1. IMPORT NECESARIO
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SelectProductScreen extends StatefulWidget {
   final String tableId;
@@ -12,11 +12,22 @@ class SelectProductScreen extends StatefulWidget {
 
 class _SelectProductScreenState extends State<SelectProductScreen> {
   String _searchQuery = '';
+  // 1. Creamos la variable para guardar la conexión de los productos
+  late Stream<QuerySnapshot> _productosStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Pedimos la carta a Firebase UNA SOLA VEZ al abrir la pantalla
+    _productosStream = FirebaseFirestore.instance
+        .collection('productos')
+        .orderBy('nombre')
+        .snapshots();
+  }
 
   Future<void> _addProductToTable(String productName, double productPrice) async {
     final firestore = FirebaseFirestore.instance;
     final tableRef = firestore.collection('mesas').doc(widget.tableId);
-    // --- 2. OBTENER EL USUARIO ACTUAL PARA EL LOG ---
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Desconocido';
 
     await firestore.runTransaction((transaction) async {
@@ -29,7 +40,6 @@ class _SelectProductScreenState extends State<SelectProductScreen> {
       final dynamic rawItems = tableData['items'];
       final Map<String, dynamic> items = {};
 
-      // Tu lógica para manejar y convertir la lista de items
       if (rawItems is Map) {
         items.addAll(Map<String, dynamic>.from(rawItems));
       } else if (rawItems is List) {
@@ -64,18 +74,14 @@ class _SelectProductScreenState extends State<SelectProductScreen> {
         newTotal += itemPrice * itemQuantity;
       });
 
-      // --- 3. LÓGICA DE LOG AÑADIDA AQUÍ ---
-      // Se crea la entrada del log antes de guardar los cambios
       final logEntry = {
         'accion': actionLog,
         'producto': productName,
         'camarero': userEmail,
         'fecha': FieldValue.serverTimestamp(),
       };
-      // Se añade la operación de crear el log a la transacción
       transaction.set(tableRef.collection('log').doc(), logEntry);
 
-      // Finalmente, se actualiza la mesa
       transaction.update(tableRef, {
         'items': items,
         'total': newTotal,
@@ -111,7 +117,8 @@ class _SelectProductScreenState extends State<SelectProductScreen> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('productos').orderBy('nombre').snapshots(),
+              // 3. Usamos la variable guardada en lugar de llamar a Firebase aquí
+              stream: _productosStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

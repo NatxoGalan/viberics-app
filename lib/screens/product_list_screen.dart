@@ -11,6 +11,18 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   String _searchQuery = '';
+  // 1. Añadimos la variable para el Stream
+  late Stream<QuerySnapshot> _productosStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Iniciamos el Stream una sola vez
+    _productosStream = FirebaseFirestore.instance
+        .collection('productos')
+        .orderBy('nombre')
+        .snapshots();
+  }
 
   Future<void> _deleteProduct(BuildContext context, String productId, String productName) async {
     final bool? confirmDelete = await showDialog<bool>(
@@ -36,13 +48,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
     if (confirmDelete == true) {
       try {
         await FirebaseFirestore.instance.collection('productos').doc(productId).delete();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$productName" ha sido eliminado.')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$productName" ha sido eliminado.')),
+          );
+        }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al eliminar el producto: $e')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar el producto: $e')),
+          );
+        }
       }
     }
   }
@@ -70,7 +86,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('productos').orderBy('nombre').snapshots(),
+            // 3. Usamos el stream guardado
+            stream: _productosStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -142,4 +159,3 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 }
-
