@@ -8,7 +8,7 @@ import 'log_screen.dart';
 // Límites en píxeles para el tamaño de las tarjetas
 const double minCardWidth = 100.0;
 const double maxCardWidth = 260.0;
-const double minCardHeight = 134.0;
+const double minCardHeight = 111.0;
 const double maxCardHeight = 260.0;
 
 // Rejilla extrafina para un control preciso

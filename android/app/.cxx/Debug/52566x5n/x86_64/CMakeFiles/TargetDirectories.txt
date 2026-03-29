@@ -1,0 +1,2 @@
+E:/2DAM/ProyecteFinal/Workspace/viberics_app/android/app/.cxx/Debug/52566x5n/x86_64/CMakeFiles/edit_cache.dir
+E:/2DAM/ProyecteFinal/Workspace/viberics_app/android/app/.cxx/Debug/52566x5n/x86_64/CMakeFiles/rebuild_cache.dir

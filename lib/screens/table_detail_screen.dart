@@ -18,17 +18,67 @@ class TableDetailScreen extends StatefulWidget {
 }
 
 class _TableDetailScreenState extends State<TableDetailScreen> {
-  // 1. Aquí guardaremos nuestra conexión segura de 1 sola lectura
   late Stream<DocumentSnapshot> _tableStream;
 
   @override
   void initState() {
     super.initState();
-    // 2. Se ejecuta UNA SOLA VEZ al abrir la comanda de la mesa
     _tableStream = FirebaseFirestore.instance
         .collection('mesas')
-        .doc(widget.tableId) // Fíjate que ahora es widget.tableId
+        .doc(widget.tableId)
         .snapshots();
+  }
+
+  // --- NUEVA FUNCIÓN: CAMBIAR NOMBRE DE LA MESA ---
+  Future<void> _editTableName(BuildContext context, String currentName) async {
+    final TextEditingController nameController = TextEditingController(text: currentName);
+    
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cambiar nombre de la mesa'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(labelText: 'Nuevo nombre'),
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      final newName = nameController.text.trim();
+      if (newName.isNotEmpty && newName != currentName) {
+        try {
+          await FirebaseFirestore.instance.collection('mesas').doc(widget.tableId).update({
+            'nombre': newName,
+          });
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Nombre actualizado a "$newName"')),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error al actualizar: $e')),
+            );
+          }
+        }
+      }
+    }
   }
 
   Future<void> _updateItem(String itemName, {int? quantityChange, bool deleteItem = false}) async {
@@ -191,7 +241,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Mesa "${widget.tableName}" vaciada correctamente.')),
+            SnackBar(content: Text('Mesa vaciada correctamente.')),
           );
         }
       } catch (e) {
@@ -245,7 +295,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
         if (context.mounted) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Mesa "${widget.tableName}" eliminada.')),
+            const SnackBar(content: Text('Mesa eliminada correctamente.')),
           );
         }
       } catch (e) {
@@ -261,7 +311,6 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      // 3. Usamos la variable en lugar de llamar a Firebase aquí
       stream: _tableStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -276,6 +325,10 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
         }
 
         final tableData = snapshot.data!.data() as Map<String, dynamic>;
+        
+        // --- AQUÍ HACEMOS QUE EL NOMBRE SEA REACTIVO ---
+        final String currentTableName = tableData['nombre'] ?? widget.tableName;
+
         final dynamic rawItems = tableData['items'];
         final Map<String, dynamic> items = {};
 
@@ -303,8 +356,14 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Comanda: ${widget.tableName}'),
+            title: Text('Comanda: $currentTableName'),
             actions: [
+              // --- BOTÓN DE EDITAR NOMBRE AÑADIDO AQUÍ ---
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => _editTableName(context, currentTableName),
+                tooltip: 'Cambiar Nombre',
+              ),
               IconButton(
                 icon: const Icon(Icons.delete_sweep_outlined, color: Colors.orange),
                 onPressed: () => _emptyTable(context),
