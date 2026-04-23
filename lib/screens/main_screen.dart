@@ -6,7 +6,9 @@ import 'table_management_screen.dart';
 import 'add_product_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final String userRole;
+
+  const MainScreen({super.key, required this.userRole});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -14,22 +16,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-
-  static const List<Widget> _widgetOptions = <Widget>[
-    ProductListScreen(),
-    TableManagementScreen(),
-  ];
-
-  static const List<String> _appBarTitles = <String>[
-    'Gestión de Carta',
-    'Gestión de Mesas',
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
 
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
@@ -44,10 +30,75 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isJefe = widget.userRole == 'jefe';
+
+    // Si es jefe: Carta (index 0) + Mesas (index 1)
+    // Si no es jefe: solo Mesas (index 0)
+    final bool isCocinero = widget.userRole == 'cocinero';
+    final bool isCamarero = widget.userRole == 'camarero';
+
+    // Jefe y Cocinero: Carta + Mesas. Camarero: solo Mesas.
+    final List<Widget> widgetOptions;
+    if (!isCamarero) {
+      widgetOptions = [
+        ProductListScreen(userRole: widget.userRole),
+        TableManagementScreen(userRole: widget.userRole),
+      ];
+    } else {
+      widgetOptions = [
+        TableManagementScreen(userRole: widget.userRole),
+      ];
+    }
+
+    final List<String> appBarTitles = !isCamarero
+        ? ['Gestión de Carta', 'Gestión de Mesas']
+        : ['Gestión de Mesas'];
+
+    final List<BottomNavigationBarItem> navItems = !isCamarero
+        ? const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book),
+              label: 'Carta',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.table_restaurant_outlined),
+              label: 'Mesas',
+            ),
+          ]
+        : const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.table_restaurant_outlined),
+              label: 'Mesas',
+            ),
+          ];
+
+    // Determinar el texto del rol para mostrarlo
+    String rolLabel;
+    switch (widget.userRole) {
+      case 'camarero':
+        rolLabel = '🍹 Camarero';
+        break;
+      case 'cocinero':
+        rolLabel = '🍳 Cocinero';
+        break;
+      default:
+        rolLabel = '👑 Jefe';
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_appBarTitles[_selectedIndex]),
+        title: Text(appBarTitles[_selectedIndex]),
         actions: [
+          // Mostrar el rol del usuario
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text(
+                rolLabel,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.person_outline),
             onSelected: (value) {
@@ -70,18 +121,17 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-      // --- CORRECCIÓN IMPORTANTE AQUÍ ---
-      // Hemos quitado el widget 'Center'. El body ahora es directamente
-      // la pantalla seleccionada, permitiendo que ocupe todo el espacio.
-      body: _widgetOptions.elementAt(_selectedIndex),
+      body: widgetOptions.elementAt(_selectedIndex),
       
-      // El FloatingActionButton se controla desde aquí para que solo aparezca
-      // en la pantalla de la carta.
-      floatingActionButton: _selectedIndex == 0
+      // FAB solo para jefe y cocinero en la pestaña Carta
+      floatingActionButton: (!isCamarero && _selectedIndex == 0)
           ? FloatingActionButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AddProductScreen(userRole: widget.userRole),
+                  ),
                 );
               },
               tooltip: 'Añadir Producto',
@@ -89,21 +139,18 @@ class _MainScreenState extends State<MainScreen> {
             )
           : null,
           
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: 'Carta',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.table_restaurant_outlined),
-            label: 'Mesas',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-      ),
+      // BottomNavigationBar solo si hay más de una pestaña
+      bottomNavigationBar: navItems.length > 1
+          ? BottomNavigationBar(
+              items: navItems,
+              currentIndex: _selectedIndex,
+              onTap: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+            )
+          : null,
     );
   }
 }
-

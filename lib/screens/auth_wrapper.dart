@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:viberics_app/screens/login_screen.dart';
 import 'package:viberics_app/screens/main_screen.dart';
+import 'package:viberics_app/screens/user_role.dart';
 
 
 class AuthWrapper extends StatelessWidget {
@@ -24,8 +25,19 @@ class AuthWrapper extends StatelessWidget {
 
         // Si hay un usuario en el snapshot, significa que ha iniciado sesión
         if (snapshot.hasData) {
-          // Por lo tanto, muestra la pantalla principal de la aplicación
-          return const MainScreen();
+          // Obtenemos el rol del usuario antes de mostrar la pantalla principal
+          return FutureBuilder<String>(
+            future: getUserRole(),
+            builder: (context, roleSnapshot) {
+              if (roleSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final userRole = roleSnapshot.data ?? 'jefe';
+              return MainScreen(userRole: userRole);
+            },
+          );
         } else {
           // Si no hay datos de usuario, muestra la pantalla de login
           return const LoginScreen();
@@ -34,4 +46,3 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
-

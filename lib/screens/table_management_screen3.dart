@@ -64,6 +64,7 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                       builder: (context) => TableDetailScreen(
                         tableId: table.id,
                         tableName: tableName,
+                        userRole: 'jefe',
                       ),
                     ),
                   );
