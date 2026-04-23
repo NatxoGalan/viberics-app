@@ -319,7 +319,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
               ),
               pw.SizedBox(height: 4),
               pw.Center(
-                child: pw.Text('Factura simplificada',
+                child: pw.Text('Factura proforma',
                     style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
               ),
 
@@ -338,7 +338,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                     pw.SizedBox(height: 2),
                     ticketRow(
                       'Atendido por:',
-                      FirebaseAuth.instance.currentUser?.email?.split('@').first ?? 'N/A',
+                      'Marta',
                     ),
                   ],
                 ),
@@ -485,7 +485,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
               // ===== PIE DE TICKET =====
               pw.Center(
                 child: pw.Text(
-                  'Atendido por: ${FirebaseAuth.instance.currentUser?.email?.split('@').first ?? 'N/A'}',
+                  'Atendido por: Marta',
                   style: const pw.TextStyle(fontSize: 8),
                 ),
               ),

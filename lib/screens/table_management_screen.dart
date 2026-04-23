@@ -172,15 +172,22 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                     tables.map((table) {
                       final tableData = table.data() as Map<String, dynamic>;
 
-                      final double relativeDx =
-                          (tableData['dx'] as num?)?.toDouble() ?? 0.05;
-                      final double relativeDy =
-                          (tableData['dy'] as num?)?.toDouble() ?? 0.05;
+                      final limits = CardLimits.forScreen(availableSize.width);
+                      final double relativeWidth = (tableData['width'] as num?)?.toDouble() ?? 0.3;
+                      final double relativeHeight = (tableData['height'] as num?)?.toDouble() ?? 0.35;
+                      
+                      final double cardWidth = (relativeWidth * availableSize.width).clamp(limits.minW, limits.maxW);
+                      final double cardHeight = (relativeHeight * availableSize.width).clamp(limits.minH, limits.maxH);
 
-                      final double absoluteDx =
-                          relativeDx * availableSize.width;
-                      final double absoluteDy =
-                          relativeDy * availableSize.height;
+                      final double maxDx = availableSize.width - cardWidth;
+                      final double maxDy = availableSize.height - cardHeight;
+
+                      final double relativeDx = (tableData['dx'] as num?)?.toDouble() ?? 0.05;
+                      final double relativeDy = (tableData['dy'] as num?)?.toDouble() ?? 0.05;
+
+                      // Evitamos que la mesa se esconda detrás de la barra de navegación o se salga de la pantalla
+                      final double absoluteDx = (relativeDx * availableSize.width).clamp(0.0, maxDx);
+                      final double absoluteDy = (relativeDy * availableSize.height).clamp(0.0, maxDy);
 
                       Widget tableWidget = _TableWidget(
                         table: table,
