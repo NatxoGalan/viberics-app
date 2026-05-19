@@ -503,88 +503,54 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
       ),
     );
 
-    // Obtener las impresoras disponibles
-    final printers = await Printing.listPrinters();
-
-    if (printers.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se encontró ninguna impresora conectada.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    // Seleccionar impresora: si solo hay una, usarla directamente.
-    // Si hay varias, dejar que el usuario elija.
-    Printer? selectedPrinter;
-
-    if (printers.length == 1) {
-      selectedPrinter = printers.first;
-    } else {
-      selectedPrinter = await showDialog<Printer>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Seleccionar impresora'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: printers.length,
-                itemBuilder: (context, index) {
-                  final printer = printers[index];
-                  return ListTile(
-                    leading: Icon(
-                      printer.isDefault ? Icons.print : Icons.print_outlined,
-                      color: printer.isDefault ? Colors.green : null,
-                    ),
-                    title: Text(printer.name),
-                    subtitle: printer.isDefault
-                        ? const Text('Predeterminada',
-                            style: TextStyle(color: Colors.green))
-                        : null,
-                    onTap: () => Navigator.of(context).pop(printer),
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(null),
-                child: const Text('Cancelar'),
-              ),
-            ],
-          );
-        },
-      );
-    }
-
-    if (selectedPrinter == null) return;
-
-    // Imprimir directamente sin mostrar visor PDF
     final pdfBytes = await pdf.save();
-    final result = await Printing.directPrintPdf(
-      printer: selectedPrinter,
+
+    try {
+      // Intentar impresión directa (sin visor PDF)
+      final printers = await Printing.listPrinters();
+
+      if (printers.isNotEmpty) {
+        // Usar la primera impresora disponible (la USB conectada)
+        final printer = printers.firstWhere(
+          (p) => p.isDefault,
+          orElse: () => printers.first,
+        );
+
+        final result = await Printing.directPrintPdf(
+          printer: printer,
+          onLayout: (_) async => pdfBytes,
+          name: 'Ticket_$tableName',
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result
+                    ? 'Ticket impreso correctamente ✓'
+                    : 'Error al imprimir el ticket',
+              ),
+              backgroundColor: result ? Colors.green : Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (_) {
+      // Si directPrintPdf falla (ej: Android no soporta listPrinters),
+      // continuar con el fallback de layoutPdf
+    }
+
+    // Fallback: usar el diálogo del sistema (funciona siempre en Android)
+    await Printing.layoutPdf(
       onLayout: (_) async => pdfBytes,
       name: 'Ticket_$tableName',
+      format: PdfPageFormat(
+        80 * PdfPageFormat.mm,
+        (150 + (items.length * 8.0)) * PdfPageFormat.mm,
+        marginAll: 6 * PdfPageFormat.mm,
+      ),
     );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result
-                ? 'Ticket impreso correctamente ✓'
-                : 'Error al imprimir el ticket',
-          ),
-          backgroundColor: result ? Colors.green : Colors.red,
-        ),
-      );
-    }
   }
 
   Future<void> _updateItemPrice(BuildContext context, String itemName) async {
