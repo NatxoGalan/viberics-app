@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:intl/intl.dart';
 import 'select_product_screen.dart';
+import '../services/thermal_printer_service.dart';
 
 class TableDetailScreen extends StatefulWidget {
   final String tableId;
@@ -225,332 +224,176 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
     }
   }
 
-  // --- GENERAR PDF ESTILO TICKET TÉRMICO ---
+  // --- IMPRIMIR TICKET DIRECTAMENTE POR USB (ESC/POS) ---
   Future<void> _generateAndPrintPdf(
     String tableName,
     List<MapEntry<String, dynamic>> items,
     double total,
   ) async {
-    final pdf = pw.Document();
     final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
     final int totalItems = items.fold<int>(
       0,
       (acc, entry) => acc + ((entry.value['cantidad'] as num?)?.toInt() ?? 0),
     );
-
-    // Formato de ticket térmico: 80mm de ancho, altura variable
-    const double ticketWidth = 80 * PdfPageFormat.mm;
-
-    // Calcular la altura necesaria en mm basada en el número de items
-    final double ticketHeightMm = 150 + (items.length * 8.0);
-
-    final pageFormat = PdfPageFormat(
-      ticketWidth,
-      ticketHeightMm * PdfPageFormat.mm,
-      marginAll: 6 * PdfPageFormat.mm,
-    );
-
-    // Helper para crear línea de texto alineada (izq - der)
-    pw.Widget ticketRow(String left, String right,
-        {pw.TextStyle? leftStyle, pw.TextStyle? rightStyle}) {
-      final defaultStyle = const pw.TextStyle(fontSize: 8);
-      return pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(left, style: leftStyle ?? defaultStyle),
-          pw.Text(right, style: rightStyle ?? defaultStyle),
-        ],
-      );
-    }
-
-    // Helper para línea de puntos separadora
-    pw.Widget dottedLine() {
-      return pw.Container(
-        margin: const pw.EdgeInsets.symmetric(vertical: 3),
-        child: pw.Text(
-          '- ' * 30,
-          style: const pw.TextStyle(fontSize: 6),
-          textAlign: pw.TextAlign.center,
-        ),
-      );
-    }
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: pageFormat,
-        margin: const pw.EdgeInsets.all(6),
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              // ===== CABECERA: LOGO VIBÈRICS =====
-              pw.SizedBox(height: 4),
-              pw.Center(
-                child: pw.Text(
-                  '\u00b7 vib\u00e8rics \u00b7',
-                  style: pw.TextStyle(
-                    fontSize: 20,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.SizedBox(height: 6),
-
-              // ===== DATOS DEL NEGOCIO =====
-              pw.Center(
-                child: pw.Text('VIB\u00c8RICS O.E.',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ),
-              pw.Center(
-                child: pw.Text('PLAZA MAYOR, 13',
-                    style: const pw.TextStyle(fontSize: 7)),
-              ),
-              pw.Center(
-                child: pw.Text('46450 BENIFAIO',
-                    style: const pw.TextStyle(fontSize: 7)),
-              ),
-              pw.Center(
-                child: pw.Text('Cif. E-55437081',
-                    style: const pw.TextStyle(fontSize: 7)),
-              ),
-              pw.Center(
-                child: pw.Text('Tlf. 699 620 662',
-                    style: const pw.TextStyle(fontSize: 7)),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Center(
-                child: pw.Text('Factura proforma',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ),
-
-              pw.SizedBox(height: 6),
-
-              // ===== DATOS DE LA MESA Y FECHA (en recuadro) =====
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.all(4),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(width: 0.5),
-                ),
-                child: pw.Column(
-                  children: [
-                    ticketRow('Mesa: $tableName', now),
-                    pw.SizedBox(height: 2),
-                    ticketRow(
-                      'Atendido por:',
-                      'Marta',
-                    ),
-                  ],
-                ),
-              ),
-
-              pw.SizedBox(height: 6),
-
-              // ===== CABECERA DE PRODUCTOS =====
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    top: pw.BorderSide(width: 0.5),
-                    bottom: pw.BorderSide(width: 0.5),
-                  ),
-                ),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      flex: 4,
-                      child: pw.Text('Producto',
-                          style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                    ),
-                    pw.SizedBox(
-                      width: 25,
-                      child: pw.Text('Ud.',
-                          style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.center),
-                    ),
-                    pw.SizedBox(
-                      width: 35,
-                      child: pw.Text('P/ud',
-                          style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.right),
-                    ),
-                    pw.SizedBox(
-                      width: 40,
-                      child: pw.Text('\u20ac',
-                          style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-                          textAlign: pw.TextAlign.right),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ===== LISTA DE PRODUCTOS =====
-              ...items.map((entry) {
-                final name = entry.key;
-                final data = entry.value;
-                final price = (data['precio'] as num?)?.toDouble() ?? 0.0;
-                final qty = (data['cantidad'] as num?)?.toInt() ?? 0;
-                final subtotal = price * qty;
-
-                return pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                  child: pw.Row(
-                    children: [
-                      pw.Expanded(
-                        flex: 4,
-                        child: pw.Text(name,
-                            style: const pw.TextStyle(fontSize: 7)),
-                      ),
-                      pw.SizedBox(
-                        width: 25,
-                        child: pw.Text('$qty',
-                            style: const pw.TextStyle(fontSize: 7),
-                            textAlign: pw.TextAlign.center),
-                      ),
-                      pw.SizedBox(
-                        width: 35,
-                        child: pw.Text(price.toStringAsFixed(2),
-                            style: const pw.TextStyle(fontSize: 7),
-                            textAlign: pw.TextAlign.right),
-                      ),
-                      pw.SizedBox(
-                        width: 40,
-                        child: pw.Text(subtotal.toStringAsFixed(2),
-                            style: const pw.TextStyle(fontSize: 7),
-                            textAlign: pw.TextAlign.right),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-
-              dottedLine(),
-
-              // ===== TOTAL =====
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    top: pw.BorderSide(width: 0.5),
-                    bottom: pw.BorderSide(width: 0.5),
-                  ),
-                ),
-                child: pw.Column(
-                  children: [
-                    ticketRow('N. Ops', '\u20ac',
-                        leftStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-                        rightStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 2),
-                    ticketRow(
-                      'Total:       $totalItems',
-                      total.toStringAsFixed(2),
-                      leftStyle: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                      rightStyle: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-
-              pw.SizedBox(height: 8),
-
-              // ===== MÉTODO DE PAGO =====
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    top: pw.BorderSide(width: 0.5),
-                    bottom: pw.BorderSide(width: 0.5),
-                  ),
-                ),
-                child: pw.Column(
-                  children: [
-                    ticketRow('M\u00e9todo de pago', '\u20ac',
-                        leftStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-                        rightStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 2),
-                    ticketRow('Cash', total.toStringAsFixed(2)),
-                    ticketRow('Entregado:', total.toStringAsFixed(2)),
-                    ticketRow('Cambio:', '0,00',
-                        leftStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-                        rightStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ),
-
-              pw.SizedBox(height: 10),
-
-              // ===== PIE DE TICKET =====
-              pw.Center(
-                child: pw.Text(
-                  'Atendido por: Marta',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Center(
-                child: pw.Text(
-                  'GRACIAS POR SU VISITA',
-                  style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-              pw.SizedBox(height: 8),
-            ],
-          );
-        },
-      ),
-    );
-
-    final pdfBytes = await pdf.save();
+    final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Camarero';
 
     try {
-      // Intentar impresión directa (sin visor PDF)
-      final printers = await Printing.listPrinters();
+      // Generar comandos ESC/POS para impresora térmica
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
 
-      if (printers.isNotEmpty) {
-        // Usar la primera impresora disponible (la USB conectada)
-        final printer = printers.firstWhere(
-          (p) => p.isDefault,
-          orElse: () => printers.first,
-        );
+      // ===== CABECERA: LOGO VIBÈRICS =====
+      bytes += generator.text(
+        '· viberics ·',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      );
+      bytes += generator.feed(1);
 
-        final result = await Printing.directPrintPdf(
-          printer: printer,
-          onLayout: (_) async => pdfBytes,
-          name: 'Ticket_$tableName',
-        );
+      // ===== DATOS DEL NEGOCIO =====
+      bytes += generator.text('VIBERICS O.E.',
+          styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text('PLAZA MAYOR, 13',
+          styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('46450 BENIFAIO',
+          styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('Cif. E-55437081',
+          styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.text('Tlf. 699 620 662',
+          styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.feed(1);
+      bytes += generator.text('Factura proforma',
+          styles: const PosStyles(align: PosAlign.center, bold: true));
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                result
-                    ? 'Ticket impreso correctamente ✓'
-                    : 'Error al imprimir el ticket',
-              ),
-              backgroundColor: result ? Colors.green : Colors.red,
-            ),
-          );
-        }
-        return;
+      bytes += generator.hr();
+
+      // ===== DATOS DE LA MESA Y FECHA =====
+      bytes += generator.row([
+        PosColumn(text: 'Mesa: $tableName', width: 6,
+            styles: const PosStyles(bold: true)),
+        PosColumn(text: now, width: 6,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.text('Atendido por: $userEmail',
+          styles: const PosStyles(align: PosAlign.left));
+
+      bytes += generator.hr();
+
+      // ===== CABECERA DE PRODUCTOS =====
+      bytes += generator.row([
+        PosColumn(text: 'Producto', width: 5,
+            styles: const PosStyles(bold: true)),
+        PosColumn(text: 'Ud.', width: 2,
+            styles: const PosStyles(align: PosAlign.center, bold: true)),
+        PosColumn(text: 'P/ud', width: 2,
+            styles: const PosStyles(align: PosAlign.right, bold: true)),
+        PosColumn(text: 'EUR', width: 3,
+            styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      bytes += generator.hr(ch: '-');
+
+      // ===== LISTA DE PRODUCTOS =====
+      for (final entry in items) {
+        final name = entry.key;
+        final data = entry.value;
+        final price = (data['precio'] as num?)?.toDouble() ?? 0.0;
+        final qty = (data['cantidad'] as num?)?.toInt() ?? 0;
+        final subtotal = price * qty;
+
+        bytes += generator.row([
+          PosColumn(text: name, width: 5),
+          PosColumn(text: '$qty', width: 2,
+              styles: const PosStyles(align: PosAlign.center)),
+          PosColumn(text: price.toStringAsFixed(2), width: 2,
+              styles: const PosStyles(align: PosAlign.right)),
+          PosColumn(text: subtotal.toStringAsFixed(2), width: 3,
+              styles: const PosStyles(align: PosAlign.right)),
+        ]);
       }
-    } catch (_) {
-      // Si directPrintPdf falla (ej: Android no soporta listPrinters),
-      // continuar con el fallback de layoutPdf
-    }
 
-    // Fallback: usar el diálogo del sistema (funciona siempre en Android)
-    await Printing.layoutPdf(
-      onLayout: (_) async => pdfBytes,
-      name: 'Ticket_$tableName',
-      format: PdfPageFormat(
-        80 * PdfPageFormat.mm,
-        (150 + (items.length * 8.0)) * PdfPageFormat.mm,
-        marginAll: 6 * PdfPageFormat.mm,
-      ),
-    );
+      bytes += generator.hr();
+
+      // ===== TOTAL =====
+      bytes += generator.row([
+        PosColumn(text: 'Total: $totalItems uds.', width: 6,
+            styles: const PosStyles(bold: true, height: PosTextSize.size2)),
+        PosColumn(text: '${total.toStringAsFixed(2)} EUR', width: 6,
+            styles: const PosStyles(
+              align: PosAlign.right,
+              bold: true,
+              height: PosTextSize.size2,
+            )),
+      ]);
+
+      bytes += generator.hr();
+
+      // ===== MÉTODO DE PAGO =====
+      bytes += generator.row([
+        PosColumn(text: 'Metodo de pago', width: 6,
+            styles: const PosStyles(bold: true)),
+        PosColumn(text: 'EUR', width: 6,
+            styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: 'Cash', width: 6),
+        PosColumn(text: total.toStringAsFixed(2), width: 6,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: 'Entregado:', width: 6),
+        PosColumn(text: total.toStringAsFixed(2), width: 6,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: 'Cambio:', width: 6,
+            styles: const PosStyles(bold: true)),
+        PosColumn(text: '0,00', width: 6,
+            styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+
+      bytes += generator.feed(1);
+
+      // ===== PIE DE TICKET =====
+      bytes += generator.text('Atendido por: $userEmail',
+          styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.feed(1);
+      bytes += generator.text('GRACIAS POR SU VISITA',
+          styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.feed(2);
+      bytes += generator.cut();
+
+      // Enviar directamente a la impresora USB
+      final printerService = ThermalPrinterService.instance;
+      final printed = await printerService.printData(bytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              printed
+                  ? 'Ticket impreso correctamente ✓'
+                  : 'No se pudo imprimir. Comprueba que la impresora USB está conectada.',
+            ),
+            backgroundColor: printed ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al imprimir: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _updateItemPrice(BuildContext context, String itemName) async {
