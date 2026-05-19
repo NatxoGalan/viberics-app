@@ -503,10 +503,88 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
+    // Obtener las impresoras disponibles
+    final printers = await Printing.listPrinters();
+
+    if (printers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontró ninguna impresora conectada.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Seleccionar impresora: si solo hay una, usarla directamente.
+    // Si hay varias, dejar que el usuario elija.
+    Printer? selectedPrinter;
+
+    if (printers.length == 1) {
+      selectedPrinter = printers.first;
+    } else {
+      selectedPrinter = await showDialog<Printer>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Seleccionar impresora'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: printers.length,
+                itemBuilder: (context, index) {
+                  final printer = printers[index];
+                  return ListTile(
+                    leading: Icon(
+                      printer.isDefault ? Icons.print : Icons.print_outlined,
+                      color: printer.isDefault ? Colors.green : null,
+                    ),
+                    title: Text(printer.name),
+                    subtitle: printer.isDefault
+                        ? const Text('Predeterminada',
+                            style: TextStyle(color: Colors.green))
+                        : null,
+                    onTap: () => Navigator.of(context).pop(printer),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    if (selectedPrinter == null) return;
+
+    // Imprimir directamente sin mostrar visor PDF
+    final pdfBytes = await pdf.save();
+    final result = await Printing.directPrintPdf(
+      printer: selectedPrinter,
+      onLayout: (_) async => pdfBytes,
       name: 'Ticket_$tableName',
     );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result
+                ? 'Ticket impreso correctamente ✓'
+                : 'Error al imprimir el ticket',
+          ),
+          backgroundColor: result ? Colors.green : Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _updateItemPrice(BuildContext context, String itemName) async {
