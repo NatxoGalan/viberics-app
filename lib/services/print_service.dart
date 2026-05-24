@@ -10,11 +10,21 @@ PrintService getPrintService() => platform_impl.createPrintService();
 
 /// Interfaz abstracta del servicio de impresión.
 abstract class PrintService {
+  /// Imprime el ticket de factura completo (con precios y total).
   Future<void> printTicket({
     required BuildContext context,
     required String tableName,
     required List<MapEntry<String, dynamic>> items,
     required double total,
+    required String userEmail,
+  });
+
+  /// Imprime un ticket de cocina (solo comida, sin precios).
+  /// [foodItems] es un mapa nombre→cantidad de los platos añadidos.
+  Future<void> printKitchenTicket({
+    required BuildContext context,
+    required String tableName,
+    required Map<String, int> foodItems,
     required String userEmail,
   });
 }

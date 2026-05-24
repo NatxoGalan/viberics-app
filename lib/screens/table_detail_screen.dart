@@ -629,6 +629,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                 MaterialPageRoute(
                   builder: (context) => SelectProductScreen(
                     tableId: widget.tableId,
+                    tableName: currentTableName,
                     userRole: widget.userRole,
                   ),
                 ),

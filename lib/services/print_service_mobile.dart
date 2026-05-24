@@ -447,4 +447,125 @@ class MobilePrintService extends PrintService {
       ),
     );
   }
+
+  @override
+  Future<void> printKitchenTicket({
+    required BuildContext context,
+    required String tableName,
+    required Map<String, int> foodItems,
+    required String userEmail,
+  }) async {
+    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    // Mostrar indicador de progreso
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Enviando comanda a cocina...')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    try {
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
+
+      // ===== CABECERA DE COCINA =====
+      bytes += generator.text(
+        '*** COCINA ***',
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      );
+      bytes += generator.feed(1);
+
+      bytes += generator.row([
+        PosColumn(
+            text: 'Mesa: $tableName',
+            width: 6,
+            styles: const PosStyles(
+              bold: true,
+              height: PosTextSize.size2,
+            )),
+        PosColumn(
+            text: now,
+            width: 6,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.text('Camarero: $userEmail',
+          styles: const PosStyles(align: PosAlign.left));
+      bytes += generator.hr();
+
+      // ===== LISTA DE COMIDA =====
+      for (final entry in foodItems.entries) {
+        final name = entry.key;
+        final qty = entry.value;
+
+        bytes += generator.row([
+          PosColumn(
+              text: '$qty x',
+              width: 2,
+              styles: const PosStyles(
+                bold: true,
+                height: PosTextSize.size2,
+              )),
+          PosColumn(
+              text: name,
+              width: 10,
+              styles: const PosStyles(
+                bold: true,
+                height: PosTextSize.size2,
+              )),
+        ]);
+        bytes += generator.feed(1); // Espacio entre platos para leer mejor
+      }
+
+      bytes += generator.hr();
+      bytes += generator.feed(2);
+      bytes += generator.cut();
+
+      // Enviar directamente a la impresora USB
+      final printerService = ThermalPrinterService.instance;
+      final printed = await printerService.printData(bytes);
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Cerrar diálogo progreso
+
+        if (printed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Comanda enviada a cocina ✓'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          // Si falla, mostramos el diálogo de error de impresora
+          _showPrinterErrorDialog(context, bytes, printerService);
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Cerrar progreso
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al preparar comanda de cocina: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 }

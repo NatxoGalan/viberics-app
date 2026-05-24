@@ -264,4 +264,96 @@ class WebPrintService extends PrintService {
       name: 'Ticket_$tableName',
     );
   }
+
+  @override
+  Future<void> printKitchenTicket({
+    required BuildContext context,
+    required String tableName,
+    required Map<String, int> foodItems,
+    required String userEmail,
+  }) async {
+    final pdf = pw.Document();
+    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+
+    const double ticketWidth = 80 * PdfPageFormat.mm;
+    final double ticketHeightMm = 100 + (foodItems.length * 10.0);
+
+    final pageFormat = PdfPageFormat(
+      ticketWidth,
+      ticketHeightMm * PdfPageFormat.mm,
+      marginAll: 6 * PdfPageFormat.mm,
+    );
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        margin: const pw.EdgeInsets.all(6),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.SizedBox(height: 4),
+              pw.Center(
+                child: pw.Text(
+                  '*** COCINA ***',
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Mesa: $tableName',
+                      style: pw.TextStyle(
+                          fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(now, style: const pw.TextStyle(fontSize: 8)),
+                ],
+              ),
+              pw.Container(
+                alignment: pw.Alignment.centerLeft,
+                child: pw.Text('Camarero: $userEmail',
+                    style: const pw.TextStyle(fontSize: 8)),
+              ),
+              pw.Divider(thickness: 1),
+              pw.SizedBox(height: 4),
+              ...foodItems.entries.map((entry) {
+                final name = entry.key;
+                final qty = entry.value;
+
+                return pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.SizedBox(
+                        width: 30,
+                        child: pw.Text('${qty}x',
+                            style: pw.TextStyle(
+                                fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                      ),
+                      pw.Expanded(
+                        child: pw.Text(name,
+                            style: pw.TextStyle(
+                                fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              pw.SizedBox(height: 8),
+              pw.Divider(thickness: 1),
+            ],
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Cocina_$tableName',
+    );
+  }
 }
