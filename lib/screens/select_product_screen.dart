@@ -49,7 +49,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
   }
 
   Future<void> _addProductToTable(
-      String productName, double productPrice) async {
+      String productName, double productPrice, String productType) async {
     final firestore = FirebaseFirestore.instance;
     final tableRef = firestore.collection('mesas').doc(widget.tableId);
     final userEmail =
@@ -89,7 +89,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
             (items[productName]['cantidad'] ?? 0) + 1;
         actionLog = 'Añadió 1 unidad';
       } else {
-        items[productName] = {'precio': productPrice, 'cantidad': 1};
+        items[productName] = {'precio': productPrice, 'cantidad': 1, 'tipo': productType};
         actionLog = 'Añadió a la comanda';
       }
 
@@ -175,7 +175,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
               ? Text('${precio.toStringAsFixed(2)} €')
               : null,
           onTap: () {
-            _addProductToTable(nombre, precio);
+            _addProductToTable(nombre, precio, tipo);
             Navigator.of(context).pop();
           },
         );

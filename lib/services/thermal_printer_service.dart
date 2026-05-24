@@ -18,13 +18,24 @@ class ThermalPrinterService {
   List<Printer> _availablePrinters = [];
   List<Printer> get availablePrinters => _availablePrinters;
 
+  /// Último error registrado para depuración.
+  String? _lastError;
+  String? get lastError => _lastError;
+
   /// Escanea impresoras USB disponibles.
   /// Devuelve la lista de impresoras encontradas.
   Future<List<Printer>> scanUSBPrinters() async {
     final completer = Completer<List<Printer>>();
 
     _subscription?.cancel();
-    await _plugin.getPrinters(connectionTypes: [ConnectionType.USB]);
+    _subscription = null;
+
+    try {
+      await _plugin.getPrinters(connectionTypes: [ConnectionType.USB]);
+    } catch (e) {
+      _lastError = 'Error al escanear: $e';
+      return [];
+    }
 
     _subscription = _plugin.devicesStream.listen((List<Printer> printers) {
       _availablePrinters = printers;
@@ -33,9 +44,9 @@ class ThermalPrinterService {
       }
     });
 
-    // Esperar máximo 3 segundos para detectar impresoras
+    // Esperar máximo 5 segundos para detectar impresoras (antes eran 3)
     return completer.future.timeout(
-      const Duration(seconds: 3),
+      const Duration(seconds: 5),
       onTimeout: () => _availablePrinters,
     );
   }
@@ -45,26 +56,44 @@ class ThermalPrinterService {
     try {
       await _plugin.connect(printer);
       _connectedPrinter = printer;
+      _lastError = null;
       return true;
     } catch (e) {
+      _lastError = 'Error al conectar: $e';
       return false;
     }
   }
 
   /// Conectar automáticamente a la primera impresora USB disponible.
+  /// Si ya hay una conectada, la desconecta primero para forzar re-detección.
   Future<bool> autoConnect() async {
+    // Si ya está conectada, intentar usarla directamente
     if (isConnected) return true;
 
-    final printers = await scanUSBPrinters();
-    if (printers.isEmpty) return false;
+    // Desconectar cualquier impresora previa que haya perdido la conexión
+    if (_connectedPrinter != null) {
+      await disconnect();
+    }
 
-    return connect(printers.first);
+    final printers = await scanUSBPrinters();
+    if (printers.isEmpty) {
+      _lastError = 'No se encontraron impresoras USB conectadas.';
+      return false;
+    }
+
+    // Intentar conectar con la primera impresora encontrada
+    final connected = await connect(printers.first);
+    if (!connected) {
+      _lastError = 'Impresora encontrada pero no se pudo conectar: ${printers.first.name}';
+    }
+    return connected;
   }
 
   /// Imprimir datos ESC/POS directamente.
+  /// Reintenta la conexión si falla la primera vez.
   Future<bool> printData(List<int> bytes) async {
-    if (_connectedPrinter == null) {
-      // Intentar auto-conectar
+    // Primer intento
+    if (!isConnected) {
       final connected = await autoConnect();
       if (!connected) return false;
     }
@@ -75,10 +104,46 @@ class ThermalPrinterService {
         bytes,
         longData: true,
       );
+      _lastError = null;
       return true;
     } catch (e) {
-      return false;
+      _lastError = 'Error al imprimir (intento 1): $e';
+
+      // Segundo intento: desconectar, reconectar e intentar de nuevo
+      await disconnect();
+      final reconnected = await autoConnect();
+      if (!reconnected) {
+        _lastError = 'No se pudo reconectar tras el fallo de impresión.';
+        return false;
+      }
+
+      try {
+        await _plugin.printData(
+          _connectedPrinter!,
+          bytes,
+          longData: true,
+        );
+        _lastError = null;
+        return true;
+      } catch (e2) {
+        _lastError = 'Error al imprimir (intento 2): $e2';
+        return false;
+      }
     }
+  }
+
+  /// Obtener estado detallado para depuración.
+  String getStatus() {
+    final parts = <String>[];
+    parts.add('Conectada: ${isConnected ? "Sí" : "No"}');
+    if (_connectedPrinter != null) {
+      parts.add('Impresora: ${_connectedPrinter!.name ?? "Sin nombre"}');
+    }
+    parts.add('Impresoras disponibles: ${_availablePrinters.length}');
+    if (_lastError != null) {
+      parts.add('Último error: $_lastError');
+    }
+    return parts.join('\n');
   }
 
   /// Desconectar la impresora.

@@ -318,16 +318,34 @@ class _TableWidget extends StatelessWidget {
     final double borderRadius = isTablet ? 16.0 : 12.0;
 
     final String tableName = tableData['nombre'] ?? 'Sin Nombre';
-    final String tableStatus = tableData['estado'] ?? 'Libre';
     final int guestCount = tableData['comensales'] ?? 0;
 
+    // Determinar color según el contenido de la comanda
+    final dynamic rawItems = tableData['items'];
+    final bool hasItems = (rawItems is Map && rawItems.isNotEmpty);
+
+    bool hasComida = false;
+    bool hasBebida = false;
+    if (hasItems) {
+      for (final entry in rawItems.values) {
+        if (entry is Map) {
+          final tipo = entry['tipo'] as String? ?? 'comida';
+          if (tipo == 'comida') hasComida = true;
+          if (tipo == 'bebida') hasBebida = true;
+        }
+      }
+    }
+
     final Color borderColor;
-    switch (tableStatus) {
-      case 'Ocupada':
-        borderColor = Colors.orange.shade700;
-        break;
-      default:
-        borderColor = Colors.green.shade700;
+    if (hasComida) {
+      // Azul oscuro cuando tiene comida
+      borderColor = const Color(0xFF1A3A6B);
+    } else if (hasBebida) {
+      // Naranja cuando solo tiene bebida
+      borderColor = Colors.orange.shade700;
+    } else {
+      // Verde cuando está libre / sin items
+      borderColor = Colors.green.shade700;
     }
 
     return GestureDetector(

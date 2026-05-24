@@ -39,6 +39,8 @@ dependencies:
   shared_preferences: ^2.2.3
   flutter_thermal_printer: ^1.2.3
   esc_pos_utils_plus: ^2.0.0
+  pdf: ^3.11.1
+  printing: ^5.13.1
   
 
 dev_dependencies:

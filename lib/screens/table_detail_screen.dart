@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
-import 'package:intl/intl.dart';
 import 'select_product_screen.dart';
-import '../services/thermal_printer_service.dart';
+import '../services/print_service.dart';
 
 class TableDetailScreen extends StatefulWidget {
   final String tableId;
@@ -224,177 +222,23 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
     }
   }
 
-  // --- IMPRIMIR TICKET DIRECTAMENTE POR USB (ESC/POS) ---
+  // --- IMPRIMIR TICKET (USB en Android, PDF en Web) ---
   Future<void> _generateAndPrintPdf(
     String tableName,
     List<MapEntry<String, dynamic>> items,
     double total,
   ) async {
-    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    final int totalItems = items.fold<int>(
-      0,
-      (acc, entry) => acc + ((entry.value['cantidad'] as num?)?.toInt() ?? 0),
-    );
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Camarero';
 
-    try {
-      // Generar comandos ESC/POS para impresora térmica
-      final profile = await CapabilityProfile.load();
-      final generator = Generator(PaperSize.mm80, profile);
-      List<int> bytes = [];
-
-      // ===== CABECERA: LOGO VIBÈRICS =====
-      bytes += generator.text(
-        '· viberics ·',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size2,
-          width: PosTextSize.size2,
-        ),
-      );
-      bytes += generator.feed(1);
-
-      // ===== DATOS DEL NEGOCIO =====
-      bytes += generator.text('VIBERICS O.E.',
-          styles: const PosStyles(align: PosAlign.center, bold: true));
-      bytes += generator.text('PLAZA MAYOR, 13',
-          styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.text('46450 BENIFAIO',
-          styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.text('Cif. E-55437081',
-          styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.text('Tlf. 699 620 662',
-          styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.feed(1);
-      bytes += generator.text('Factura proforma',
-          styles: const PosStyles(align: PosAlign.center, bold: true));
-
-      bytes += generator.hr();
-
-      // ===== DATOS DE LA MESA Y FECHA =====
-      bytes += generator.row([
-        PosColumn(text: 'Mesa: $tableName', width: 6,
-            styles: const PosStyles(bold: true)),
-        PosColumn(text: now, width: 6,
-            styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.text('Atendido por: $userEmail',
-          styles: const PosStyles(align: PosAlign.left));
-
-      bytes += generator.hr();
-
-      // ===== CABECERA DE PRODUCTOS =====
-      bytes += generator.row([
-        PosColumn(text: 'Producto', width: 5,
-            styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Ud.', width: 2,
-            styles: const PosStyles(align: PosAlign.center, bold: true)),
-        PosColumn(text: 'P/ud', width: 2,
-            styles: const PosStyles(align: PosAlign.right, bold: true)),
-        PosColumn(text: 'EUR', width: 3,
-            styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-      bytes += generator.hr(ch: '-');
-
-      // ===== LISTA DE PRODUCTOS =====
-      for (final entry in items) {
-        final name = entry.key;
-        final data = entry.value;
-        final price = (data['precio'] as num?)?.toDouble() ?? 0.0;
-        final qty = (data['cantidad'] as num?)?.toInt() ?? 0;
-        final subtotal = price * qty;
-
-        bytes += generator.row([
-          PosColumn(text: name, width: 5),
-          PosColumn(text: '$qty', width: 2,
-              styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: price.toStringAsFixed(2), width: 2,
-              styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: subtotal.toStringAsFixed(2), width: 3,
-              styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      }
-
-      bytes += generator.hr();
-
-      // ===== TOTAL =====
-      bytes += generator.row([
-        PosColumn(text: 'Total: $totalItems uds.', width: 6,
-            styles: const PosStyles(bold: true, height: PosTextSize.size2)),
-        PosColumn(text: '${total.toStringAsFixed(2)} EUR', width: 6,
-            styles: const PosStyles(
-              align: PosAlign.right,
-              bold: true,
-              height: PosTextSize.size2,
-            )),
-      ]);
-
-      bytes += generator.hr();
-
-      // ===== MÉTODO DE PAGO =====
-      bytes += generator.row([
-        PosColumn(text: 'Metodo de pago', width: 6,
-            styles: const PosStyles(bold: true)),
-        PosColumn(text: 'EUR', width: 6,
-            styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Cash', width: 6),
-        PosColumn(text: total.toStringAsFixed(2), width: 6,
-            styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Entregado:', width: 6),
-        PosColumn(text: total.toStringAsFixed(2), width: 6,
-            styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      bytes += generator.row([
-        PosColumn(text: 'Cambio:', width: 6,
-            styles: const PosStyles(bold: true)),
-        PosColumn(text: '0,00', width: 6,
-            styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-
-      bytes += generator.feed(1);
-
-      // ===== PIE DE TICKET =====
-      bytes += generator.text('Atendido por: $userEmail',
-          styles: const PosStyles(align: PosAlign.center));
-      bytes += generator.feed(1);
-      bytes += generator.text('GRACIAS POR SU VISITA',
-          styles: const PosStyles(align: PosAlign.center, bold: true));
-      bytes += generator.feed(2);
-      bytes += generator.cut();
-
-      // Enviar directamente a la impresora USB
-      final printerService = ThermalPrinterService.instance;
-      final printed = await printerService.printData(bytes);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              printed
-                  ? 'Ticket impreso correctamente ✓'
-                  : 'No se pudo imprimir. Comprueba que la impresora USB está conectada.',
-            ),
-            backgroundColor: printed ? Colors.green : Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al imprimir: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    await getPrintService().printTicket(
+      context: context,
+      tableName: tableName,
+      items: items,
+      total: total,
+      userEmail: userEmail,
+    );
   }
+
 
   Future<void> _updateItemPrice(BuildContext context, String itemName) async {
     final firestore = FirebaseFirestore.instance;
@@ -574,6 +418,133 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
     }
   }
 
+  // --- CONSTRUIR LISTA SEPARADA POR COMIDA Y BEBIDA ---
+  Widget _buildSeparatedItemList(List<MapEntry<String, dynamic>> allItems) {
+    final comidaItems = allItems.where((e) {
+      final tipo = e.value['tipo'] as String? ?? 'comida';
+      return tipo == 'comida';
+    }).toList();
+
+    final bebidaItems = allItems.where((e) {
+      final tipo = e.value['tipo'] as String? ?? 'comida';
+      return tipo == 'bebida';
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 20),
+      children: [
+        if (comidaItems.isNotEmpty) ...[
+          _buildSectionHeader('🍽  Comida', Colors.orange.shade700),
+          ...comidaItems.map((entry) => _buildItemTile(entry)),
+        ],
+        if (bebidaItems.isNotEmpty) ...[
+          _buildSectionHeader('🥤  Bebida', Colors.blue.shade700),
+          ...bebidaItems.map((entry) => _buildItemTile(entry)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        border: Border(
+          left: BorderSide(color: color, width: 4),
+        ),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemTile(MapEntry<String, dynamic> itemEntry) {
+    final itemName = itemEntry.key;
+    final itemData = itemEntry.value;
+    final itemPrice = (itemData['precio'] as num?)?.toDouble() ?? 0.0;
+    final itemQuantity = (itemData['cantidad'] as num?)?.toInt() ?? 0;
+    final subtotal = itemPrice * itemQuantity;
+    final bool showPrices = widget.userRole == 'jefe';
+
+    return ListTile(
+      title: Text(itemName),
+      subtitle: showPrices
+          ? Text('${itemPrice.toStringAsFixed(2)} € / ud.')
+          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade700),
+            onPressed: () => _updateItem(itemName, quantityChange: -1),
+            tooltip: 'Quitar uno',
+          ),
+          InkWell(
+            onTap: () => _showQuantityDialog(itemName, itemQuantity),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade400),
+              ),
+              child: Text(
+                '$itemQuantity',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.add_circle_outline, color: Colors.green.shade700),
+            onPressed: () => _updateItem(itemName, quantityChange: 1),
+            tooltip: 'Añadir uno',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'delete') {
+                _updateItem(itemName, deleteItem: true);
+              } else if (value == 'update_price') {
+                _updateItemPrice(context, itemName);
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'delete',
+                child: Text('Eliminar de la comanda'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'update_price',
+                child: Text('Actualizar precio'),
+              ),
+            ],
+            icon: Icon(Icons.more_vert, color: Colors.grey.shade700),
+            tooltip: 'Más opciones',
+          ),
+          if (showPrices)
+          SizedBox(
+            width: 80,
+            child: Text(
+              '${subtotal.toStringAsFixed(2)} €',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -651,91 +622,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
           ),
           body: items.isEmpty
               ? const Center(child: Text('No hay productos en esta comanda.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  itemCount: groupedItems.length,
-                  itemBuilder: (context, index) {
-                    final itemEntry = groupedItems[index];
-                    final itemName = itemEntry.key;
-                    final itemData = itemEntry.value;
-                    final itemPrice =
-                        (itemData['precio'] as num?)?.toDouble() ?? 0.0;
-                    final itemQuantity =
-                        (itemData['cantidad'] as num?)?.toInt() ?? 0;
-                    final subtotal = itemPrice * itemQuantity;
-                    final bool showPrices = widget.userRole == 'jefe';
-
-                    return ListTile(
-                      title: Text(itemName),
-                      subtitle: showPrices
-                          ? Text('${itemPrice.toStringAsFixed(2)} € / ud.')
-                          : null,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade700),
-                            onPressed: () => _updateItem(itemName, quantityChange: -1),
-                            tooltip: 'Quitar uno',
-                          ),
-                          // --- CANTIDAD PULSABLE PARA EDITAR POR TECLADO ---
-                          InkWell(
-                            onTap: () => _showQuantityDialog(itemName, itemQuantity),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade400),
-                              ),
-                              child: Text(
-                                '$itemQuantity',
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.add_circle_outline, color: Colors.green.shade700),
-                            onPressed: () => _updateItem(itemName, quantityChange: 1),
-                            tooltip: 'Añadir uno',
-                          ),
-                          PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'delete') {
-                                _updateItem(itemName, deleteItem: true);
-                              } else if (value == 'update_price') {
-                                _updateItemPrice(context, itemName);
-                              }
-                            },
-                            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                              const PopupMenuItem<String>(
-                                value: 'delete',
-                                child: Text('Eliminar de la comanda'),
-                              ),
-                              const PopupMenuItem<String>(
-                                value: 'update_price',
-                                child: Text('Actualizar precio'),
-                              ),
-                            ],
-                            icon: Icon(Icons.more_vert, color: Colors.grey.shade700),
-                            tooltip: 'Más opciones',
-                          ),
-                          if (showPrices)
-                          SizedBox(
-                            width: 80,
-                            child: Text(
-                              '${subtotal.toStringAsFixed(2)} €',
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+              : _buildSeparatedItemList(groupedItems),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
               Navigator.of(context).push(
