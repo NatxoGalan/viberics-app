@@ -336,9 +336,16 @@ class _TableWidget extends StatelessWidget {
       }
     }
 
+    // Determinar si hay items pendientes de imprimir
+    final dynamic rawPending = tableData['pendingPrintItems'];
+    final bool hasPendingPrint = (rawPending is Map && rawPending.isNotEmpty);
+
     final Color borderColor;
-    if (hasComida) {
-      // Azul oscuro cuando tiene comida
+    if (hasPendingPrint) {
+      // Azul claro: hay comida pendiente de imprimir
+      borderColor = const Color(0xFF64B5F6);
+    } else if (hasComida) {
+      // Azul oscuro: tiene comida pero ya se imprimió todo
       borderColor = const Color(0xFF1A3A6B);
     } else if (hasBebida) {
       // Naranja cuando solo tiene bebida

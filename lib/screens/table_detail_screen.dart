@@ -345,6 +345,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
           'items': {},
           'total': 0.0,
           'estado': 'Libre',
+          'pendingPrintItems': {},
         });
 
         await batch.commit();
@@ -544,6 +545,43 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
       ),
     );
   }
+  // --- IMPRIMIR ITEMS PENDIENTES DE COCINA ---
+  Future<void> _printPendingItems(BuildContext context, Map<String, dynamic> tableData) async {
+    final dynamic rawPending = tableData['pendingPrintItems'];
+    if (rawPending == null || rawPending is! Map || rawPending.isEmpty) return;
+
+    final Map<String, int> foodItems = {};
+    for (final entry in rawPending.entries) {
+      foodItems[entry.key as String] = (entry.value as num).toInt();
+    }
+
+    final tableName = tableData['nombre'] ?? widget.tableName;
+    final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Camarero';
+
+    try {
+      await getPrintService().printKitchenTicket(
+        context: context,
+        tableName: tableName,
+        foodItems: foodItems,
+        userEmail: userEmail,
+      );
+
+      // Si se imprimió correctamente, vaciar pendingPrintItems
+      await FirebaseFirestore.instance
+          .collection('mesas')
+          .doc(widget.tableId)
+          .update({'pendingPrintItems': {}});
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al imprimir: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -601,6 +639,14 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                 onPressed: () => _editTableName(context, currentTableName),
                 tooltip: 'Cambiar Nombre',
               ),
+              // --- BOTÓN DE IMPRIMIR PENDIENTES (azul claro) ---
+              if ((tableData['pendingPrintItems'] is Map) &&
+                  (tableData['pendingPrintItems'] as Map).isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.print, color: Color(0xFF64B5F6)),
+                  onPressed: () => _printPendingItems(context, tableData),
+                  tooltip: 'Imprimir comanda cocina',
+                ),
               // --- BOTÓN DE DESCARGAR PDF (solo jefe) ---
               if (items.isNotEmpty && widget.userRole == 'jefe')
                 IconButton(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/print_service.dart';
 
 class SelectProductScreen extends StatefulWidget {
   final String tableId;
@@ -36,10 +35,8 @@ class _SelectProductScreenState extends State<SelectProductScreen>
   // Camarero → 1 tab (Bebida). Cocinero → 1 tab (Comida). Jefe → 2 tabs.
   int get _tabCount => _isJefe ? 2 : 1;
 
-  // --- ACUMULADOR DE COMIDA AÑADIDA EN ESTA SESIÓN ---
-  // Clave: nombre del producto, Valor: cantidad añadida en esta sesión
-  final Map<String, int> _addedFoodItems = {};
-  int get _totalAddedItems => _addedFoodItems.values.fold(0, (a, b) => a + b);
+  // Contador local de items añadidos en esta sesión (solo para UI)
+  int _totalAddedItems = 0;
 
   @override
   void initState() {
@@ -119,66 +116,30 @@ class _SelectProductScreenState extends State<SelectProductScreen>
       };
       transaction.set(tableRef.collection('log').doc(), logEntry);
 
-      transaction.update(tableRef, {
+      // Si es comida, acumular en pendingPrintItems para imprimir después
+      final Map<String, dynamic> updateData = {
         'items': items,
         'total': newTotal,
         'estado': 'Ocupada',
-      });
+      };
+
+      if (productType == 'comida') {
+        final Map<String, dynamic> pending = Map<String, dynamic>.from(
+          (tableData['pendingPrintItems'] as Map?) ?? {},
+        );
+        pending[productName] = ((pending[productName] as num?)?.toInt() ?? 0) + 1;
+        updateData['pendingPrintItems'] = pending;
+      }
+
+      transaction.update(tableRef, updateData);
     });
 
-    // Acumular comida añadida para el ticket de cocina
-    if (productType == 'comida') {
-      setState(() {
-        _addedFoodItems[productName] = (_addedFoodItems[productName] ?? 0) + 1;
-      });
-    }
-  }
-
-  /// Imprime el ticket de cocina con los items de comida acumulados.
-  Future<void> _printKitchenTicket() async {
-    if (_addedFoodItems.isEmpty) return;
-
-    final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Camarero';
-
-    try {
-      await getPrintService().printKitchenTicket(
-        context: context,
-        tableName: widget.tableName,
-        foodItems: _addedFoodItems,
-        userEmail: userEmail,
-      );
-    } catch (e) {
-      // Si falla la impresión, no bloquear la navegación
-      debugPrint('Error al imprimir ticket de cocina: $e');
-    }
-  }
-
-  bool _canPop = false;
-  bool _isPopping = false;
-
-  /// Al salir de la pantalla, imprimir ticket de cocina si hay comida añadida.
-  Future<void> _handlePop() async {
-    if (_isPopping) return;
     setState(() {
-      _isPopping = true;
+      _totalAddedItems++;
     });
-
-    if (_addedFoodItems.isNotEmpty) {
-      await _printKitchenTicket();
-    }
-    
-    if (context.mounted) {
-      setState(() {
-        _canPop = true;
-      });
-      // Esperar al siguiente frame para que PopScope se actualice con canPop = true
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.of(context).pop();
-        }
-      });
-    }
   }
+
+
 
   /// Construye la lista de productos filtrada por [tipo] ('comida' o 'bebida').
   Widget _buildProductList(
@@ -223,10 +184,6 @@ class _SelectProductScreenState extends State<SelectProductScreen>
         final precio = (data['precio'] as num?)?.toDouble() ?? 0.0;
 
         // Mostrar cuántos se han añadido en esta sesión
-        final int addedCount = (tipo == 'comida')
-            ? (_addedFoodItems[nombre] ?? 0)
-            : 0;
-
         return ListTile(
           leading: CircleAvatar(
             backgroundColor: tipo == 'comida'
@@ -243,23 +200,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
           subtitle: showPrices
               ? Text('${precio.toStringAsFixed(2)} €')
               : null,
-          trailing: addedCount > 0
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade700,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '+$addedCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                )
-              : null,
+
           onTap: () {
             _addProductToTable(nombre, precio, tipo);
             ScaffoldMessenger.of(context).clearSnackBars();
@@ -303,13 +244,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
       tipos = ['bebida'];
     }
 
-    return PopScope(
-      canPop: _canPop,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handlePop();
-      },
-      child: Scaffold(
+    return Scaffold(
         appBar: AppBar(
           title: Text('Añadir a ${widget.tableName}'),
           bottom: TabBar(
@@ -322,29 +257,6 @@ class _SelectProductScreenState extends State<SelectProductScreen>
         ),
         body: Column(
           children: [
-            // Banner de items añadidos
-            if (_totalAddedItems > 0)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Colors.orange.shade50,
-                child: Row(
-                  children: [
-                    Icon(Icons.receipt_long, color: Colors.orange.shade700, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$_totalAddedItems comida(s) añadida(s) — se imprimirá ticket al salir',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextField(
@@ -395,7 +307,7 @@ class _SelectProductScreenState extends State<SelectProductScreen>
         floatingActionButton: _totalAddedItems > 0
             ? FloatingActionButton.extended(
                 onPressed: () {
-                  _handlePop();
+                  Navigator.of(context).pop();
                 },
                 icon: const Icon(Icons.check),
                 label: Text('Listo ($_totalAddedItems)'),
@@ -403,7 +315,6 @@ class _SelectProductScreenState extends State<SelectProductScreen>
                 foregroundColor: Colors.white,
               )
             : null,
-      ),
     );
   }
 }
