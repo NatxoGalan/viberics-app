@@ -96,8 +96,16 @@ class MobilePrintService extends PrintService {
       ]);
       bytes += generator.hr(ch: '-');
 
-      // ===== LISTA DE PRODUCTOS =====
-      for (final entry in items) {
+      // ===== LISTA DE PRODUCTOS (bebidas primero, luego comida) =====
+      final sortedItems = List<MapEntry<String, dynamic>>.from(items);
+      sortedItems.sort((a, b) {
+        final tipoA = (a.value['tipo'] as String?) ?? 'comida';
+        final tipoB = (b.value['tipo'] as String?) ?? 'comida';
+        if (tipoA == 'bebida' && tipoB != 'bebida') return -1;
+        if (tipoA != 'bebida' && tipoB == 'bebida') return 1;
+        return 0;
+      });
+      for (final entry in sortedItems) {
         final name = entry.key;
         final data = entry.value;
         final price = (data['precio'] as num?)?.toDouble() ?? 0.0;

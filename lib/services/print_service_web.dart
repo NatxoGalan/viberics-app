@@ -7,6 +7,19 @@ import 'print_service.dart';
 
 /// Implementación web: genera PDF y usa el diálogo del sistema.
 class WebPrintService extends PrintService {
+  /// Ordena los items: bebidas primero, luego comida.
+  List<MapEntry<String, dynamic>> _sortedItems(List<MapEntry<String, dynamic>> items) {
+    final sorted = List<MapEntry<String, dynamic>>.from(items);
+    sorted.sort((a, b) {
+      final tipoA = (a.value['tipo'] as String?) ?? 'comida';
+      final tipoB = (b.value['tipo'] as String?) ?? 'comida';
+      if (tipoA == 'bebida' && tipoB != 'bebida') return -1;
+      if (tipoA != 'bebida' && tipoB == 'bebida') return 1;
+      return 0;
+    });
+    return sorted;
+  }
+
   @override
   Future<void> printTicket({
     required BuildContext context,
@@ -151,7 +164,8 @@ class WebPrintService extends PrintService {
                   ],
                 ),
               ),
-              ...items.map((entry) {
+              // Lista de productos (bebidas primero, luego comida)
+              ..._sortedItems(items).map((entry) {
                 final name = entry.key;
                 final data = entry.value;
                 final price = (data['precio'] as num?)?.toDouble() ?? 0.0;

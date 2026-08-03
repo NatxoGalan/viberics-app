@@ -97,11 +97,16 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
 
       final tableData = tableSnapshot.data() as Map<String, dynamic>;
       final Map<String, dynamic> items = Map<String, dynamic>.from(tableData['items'] ?? {});
+      final Map<String, dynamic> pending = Map<String, dynamic>.from(tableData['pendingPrintItems'] ?? {});
 
       if (items.containsKey(itemName)) {
+        final String tipo = (items[itemName]['tipo'] as String?) ?? 'comida';
+
         if (deleteItem) {
           actionLog = 'Eliminó de la comanda';
           items.remove(itemName);
+          // Eliminar también de pendientes si es comida
+          if (tipo == 'comida') pending.remove(itemName);
         } else if (quantityChange != null) {
           final currentQuantity = items[itemName]['cantidad'] ?? 0;
           items[itemName]['cantidad'] = currentQuantity + quantityChange;
@@ -109,6 +114,18 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
           if (items[itemName]['cantidad'] <= 0) {
             items.remove(itemName);
             actionLog = 'Eliminó de la comanda';
+            if (tipo == 'comida') pending.remove(itemName);
+          } else if (tipo == 'comida' && quantityChange > 0) {
+            // Si se añade comida, acumular en pendientes
+            pending[itemName] = ((pending[itemName] as num?)?.toInt() ?? 0) + quantityChange;
+          } else if (tipo == 'comida' && quantityChange < 0 && pending.containsKey(itemName)) {
+            // Si se quita comida y hay pendientes, reducir pendientes
+            final pendingQty = ((pending[itemName] as num?)?.toInt() ?? 0) + quantityChange;
+            if (pendingQty <= 0) {
+              pending.remove(itemName);
+            } else {
+              pending[itemName] = pendingQty;
+            }
           }
         } else {
           return; 
@@ -129,7 +146,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
         };
         transaction.set(tableRef.collection('log').doc(), logEntry);
 
-        transaction.update(tableRef, {'items': items, 'total': newTotal});
+        transaction.update(tableRef, {'items': items, 'total': newTotal, 'pendingPrintItems': pending});
       }
     });
   }
@@ -146,16 +163,31 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
 
       final tableData = tableSnapshot.data() as Map<String, dynamic>;
       final Map<String, dynamic> items = Map<String, dynamic>.from(tableData['items'] ?? {});
+      final Map<String, dynamic> pending = Map<String, dynamic>.from(tableData['pendingPrintItems'] ?? {});
 
       String actionLog;
       if (!items.containsKey(itemName)) return;
 
+      final String tipo = (items[itemName]['tipo'] as String?) ?? 'comida';
+      final int oldQuantity = (items[itemName]['cantidad'] as num?)?.toInt() ?? 0;
+
       if (newQuantity <= 0) {
         items.remove(itemName);
         actionLog = 'Eliminó de la comanda';
+        if (tipo == 'comida') pending.remove(itemName);
       } else {
         items[itemName]['cantidad'] = newQuantity;
         actionLog = 'Cambió cantidad a $newQuantity';
+        // Ajustar pendientes proporcionalmente
+        if (tipo == 'comida' && pending.containsKey(itemName)) {
+          final int diff = newQuantity - oldQuantity;
+          final int pendingQty = ((pending[itemName] as num?)?.toInt() ?? 0) + diff;
+          if (pendingQty <= 0) {
+            pending.remove(itemName);
+          } else {
+            pending[itemName] = pendingQty;
+          }
+        }
       }
 
       double newTotal = 0.0;
@@ -172,7 +204,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
         'fecha': FieldValue.serverTimestamp(),
       };
       transaction.set(tableRef.collection('log').doc(), logEntry);
-      transaction.update(tableRef, {'items': items, 'total': newTotal});
+      transaction.update(tableRef, {'items': items, 'total': newTotal, 'pendingPrintItems': pending});
     });
   }
 
