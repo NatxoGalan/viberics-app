@@ -508,71 +508,108 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
     final subtotal = itemPrice * itemQuantity;
     final bool showPrices = widget.userRole == 'jefe';
 
-    return ListTile(
-      title: Text(itemName),
-      subtitle: showPrices
-          ? Text('${itemPrice.toStringAsFixed(2)} € / ud.')
-          : null,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade700),
-            onPressed: () => _updateItem(itemName, quantityChange: -1),
-            tooltip: 'Quitar uno',
-          ),
-          InkWell(
-            onTap: () => _showQuantityDialog(itemName, itemQuantity),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade400),
+          // Fila superior: nombre del producto + menú de opciones
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      itemName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (showPrices)
+                      Text(
+                        '${itemPrice.toStringAsFixed(2)} € / ud.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              child: Text(
-                '$itemQuantity',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.add_circle_outline, color: Colors.green.shade700),
-            onPressed: () => _updateItem(itemName, quantityChange: 1),
-            tooltip: 'Añadir uno',
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') {
-                _updateItem(itemName, deleteItem: true);
-              } else if (value == 'update_price') {
-                _updateItemPrice(context, itemName);
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'delete',
-                child: Text('Eliminar de la comanda'),
-              ),
-              const PopupMenuItem<String>(
-                value: 'update_price',
-                child: Text('Actualizar precio'),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    _updateItem(itemName, deleteItem: true);
+                  } else if (value == 'update_price') {
+                    _updateItemPrice(context, itemName);
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('Eliminar de la comanda'),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'update_price',
+                    child: Text('Actualizar precio'),
+                  ),
+                ],
+                icon: Icon(Icons.more_vert, color: Colors.grey.shade700),
+                tooltip: 'Más opciones',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
-            icon: Icon(Icons.more_vert, color: Colors.grey.shade700),
-            tooltip: 'Más opciones',
           ),
-          if (showPrices)
-          SizedBox(
-            width: 80,
-            child: Text(
-              '${subtotal.toStringAsFixed(2)} €',
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+          const SizedBox(height: 4),
+          // Fila inferior: controles de cantidad + subtotal
+          Row(
+            children: [
+              // Controles de cantidad
+              IconButton(
+                icon: Icon(Icons.remove_circle_outline, color: Colors.red.shade700),
+                onPressed: () => _updateItem(itemName, quantityChange: -1),
+                tooltip: 'Quitar uno',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                iconSize: 22,
+              ),
+              InkWell(
+                onTap: () => _showQuantityDialog(itemName, itemQuantity),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade400),
+                  ),
+                  child: Text(
+                    '$itemQuantity',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.add_circle_outline, color: Colors.green.shade700),
+                onPressed: () => _updateItem(itemName, quantityChange: 1),
+                tooltip: 'Añadir uno',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                iconSize: 22,
+              ),
+              const Spacer(),
+              if (showPrices)
+                Text(
+                  '${subtotal.toStringAsFixed(2)} €',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+            ],
           ),
+          const Divider(height: 12),
         ],
       ),
     );
