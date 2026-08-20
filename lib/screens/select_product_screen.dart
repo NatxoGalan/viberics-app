@@ -134,9 +134,11 @@ class _SelectProductScreenState extends State<SelectProductScreen>
       transaction.update(tableRef, updateData);
     });
 
-    setState(() {
-      _totalAddedItems++;
-    });
+    if (mounted) {
+      setState(() {
+        _totalAddedItems++;
+      });
+    }
   }
 
 

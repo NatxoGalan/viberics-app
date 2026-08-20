@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'product_list_screen.dart';
 import 'table_management_screen.dart';
 import 'add_product_screen.dart';
+import 'saved_tickets_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final String userRole;
@@ -39,7 +40,13 @@ class _MainScreenState extends State<MainScreen> {
 
     // Jefe y Cocinero: Carta + Mesas. Camarero: solo Mesas.
     final List<Widget> widgetOptions;
-    if (!isCamarero) {
+    if (isJefe) {
+      widgetOptions = [
+        ProductListScreen(userRole: widget.userRole),
+        TableManagementScreen(userRole: widget.userRole),
+        const SavedTicketsScreen(),
+      ];
+    } else if (isCocinero) {
       widgetOptions = [
         ProductListScreen(userRole: widget.userRole),
         TableManagementScreen(userRole: widget.userRole),
@@ -50,11 +57,13 @@ class _MainScreenState extends State<MainScreen> {
       ];
     }
 
-    final List<String> appBarTitles = !isCamarero
-        ? ['Gestión de Carta', 'Gestión de Mesas']
-        : ['Gestión de Mesas'];
+    final List<String> appBarTitles = isJefe
+        ? ['Gestión de Carta', 'Gestión de Mesas', 'Tickets Guardados']
+        : !isCamarero
+            ? ['Gestión de Carta', 'Gestión de Mesas']
+            : ['Gestión de Mesas'];
 
-    final List<BottomNavigationBarItem> navItems = !isCamarero
+    final List<BottomNavigationBarItem> navItems = isJefe
         ? const [
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_book),
@@ -64,13 +73,28 @@ class _MainScreenState extends State<MainScreen> {
               icon: Icon(Icons.table_restaurant_outlined),
               label: 'Mesas',
             ),
-          ]
-        : const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.table_restaurant_outlined),
-              label: 'Mesas',
+              icon: Icon(Icons.receipt_long),
+              label: 'Tickets',
             ),
-          ];
+          ]
+        : !isCamarero
+            ? const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.menu_book),
+                  label: 'Carta',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.table_restaurant_outlined),
+                  label: 'Mesas',
+                ),
+              ]
+            : const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.table_restaurant_outlined),
+                  label: 'Mesas',
+                ),
+              ];
 
     // Determinar el texto del rol para mostrarlo
     String rolLabel;
