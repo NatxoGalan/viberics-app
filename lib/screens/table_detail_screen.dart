@@ -178,14 +178,21 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
       } else {
         items[itemName]['cantidad'] = newQuantity;
         actionLog = 'Cambió cantidad a $newQuantity';
-        // Ajustar pendientes proporcionalmente
-        if (tipo == 'comida' && pending.containsKey(itemName)) {
+        // Ajustar pendientes de cocina según la diferencia
+        if (tipo == 'comida') {
           final int diff = newQuantity - oldQuantity;
-          final int pendingQty = ((pending[itemName] as num?)?.toInt() ?? 0) + diff;
-          if (pendingQty <= 0) {
-            pending.remove(itemName);
-          } else {
-            pending[itemName] = pendingQty;
+          if (diff > 0) {
+            // Unidades nuevas (aunque el plato ya se hubiera impreso antes)
+            pending[itemName] =
+                ((pending[itemName] as num?)?.toInt() ?? 0) + diff;
+          } else if (diff < 0 && pending.containsKey(itemName)) {
+            final int pendingQty =
+                ((pending[itemName] as num?)?.toInt() ?? 0) + diff;
+            if (pendingQty <= 0) {
+              pending.remove(itemName);
+            } else {
+              pending[itemName] = pendingQty;
+            }
           }
         }
       }
@@ -628,18 +635,21 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
     final userEmail = FirebaseAuth.instance.currentUser?.email ?? 'Camarero';
 
     try {
-      await getPrintService().printKitchenTicket(
+      final bool printed = await getPrintService().printKitchenTicket(
         context: context,
         tableName: tableName,
         foodItems: foodItems,
         userEmail: userEmail,
       );
 
-      // Si se imprimió correctamente, vaciar pendingPrintItems
-      await FirebaseFirestore.instance
-          .collection('mesas')
-          .doc(widget.tableId)
-          .update({'pendingPrintItems': {}});
+      // Solo vaciar pendingPrintItems si realmente se imprimió;
+      // así no se pierden platos pendientes cuando falla la impresora.
+      if (printed) {
+        await FirebaseFirestore.instance
+            .collection('mesas')
+            .doc(widget.tableId)
+            .update({'pendingPrintItems': {}});
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

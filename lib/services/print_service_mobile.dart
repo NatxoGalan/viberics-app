@@ -457,7 +457,7 @@ class MobilePrintService extends PrintService {
   }
 
   @override
-  Future<void> printKitchenTicket({
+  Future<bool> printKitchenTicket({
     required BuildContext context,
     required String tableName,
     required Map<String, int> foodItems,
@@ -517,26 +517,23 @@ class MobilePrintService extends PrintService {
       bytes += generator.hr();
 
       // ===== LISTA DE COMIDA =====
+      // Cada plato se imprime en una linea a ancho completo con texto size2.
+      // Antes se usaba generator.row con una columna de ancho 2 para la
+      // cantidad, que solo admite 3 caracteres de doble ancho y partia el
+      // texto en cantidades de 2 cifras (p.ej. "10 x").
       for (final entry in foodItems.entries) {
         final name = entry.key;
         final qty = entry.value;
 
-        bytes += generator.row([
-          PosColumn(
-              text: '$qty x',
-              width: 2,
-              styles: const PosStyles(
-                bold: true,
-                height: PosTextSize.size2,
-              )),
-          PosColumn(
-              text: name,
-              width: 10,
-              styles: const PosStyles(
-                bold: true,
-                height: PosTextSize.size2,
-              )),
-        ]);
+        bytes += generator.text(
+          '$qty x  $name',
+          styles: const PosStyles(
+            align: PosAlign.left,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          ),
+        );
         bytes += generator.feed(1); // Espacio entre platos para leer mejor
       }
 
@@ -564,6 +561,7 @@ class MobilePrintService extends PrintService {
           _showPrinterErrorDialog(context, bytes, printerService);
         }
       }
+      return printed;
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context).pop(); // Cerrar progreso
@@ -574,6 +572,7 @@ class MobilePrintService extends PrintService {
           ),
         );
       }
+      return false;
     }
   }
 }

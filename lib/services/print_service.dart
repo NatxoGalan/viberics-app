@@ -21,7 +21,8 @@ abstract class PrintService {
 
   /// Imprime un ticket de cocina (solo comida, sin precios).
   /// [foodItems] es un mapa nombre→cantidad de los platos añadidos.
-  Future<void> printKitchenTicket({
+  /// Devuelve `true` si la comanda se imprimió correctamente.
+  Future<bool> printKitchenTicket({
     required BuildContext context,
     required String tableName,
     required Map<String, int> foodItems,

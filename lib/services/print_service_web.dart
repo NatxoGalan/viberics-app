@@ -280,7 +280,7 @@ class WebPrintService extends PrintService {
   }
 
   @override
-  Future<void> printKitchenTicket({
+  Future<bool> printKitchenTicket({
     required BuildContext context,
     required String tableName,
     required Map<String, int> foodItems,
@@ -369,5 +369,6 @@ class WebPrintService extends PrintService {
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'Cocina_$tableName',
     );
+    return true;
   }
 }
