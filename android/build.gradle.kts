@@ -16,6 +16,19 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// El plugin `printing` (5.13.1) fija compileSdkVersion 30 y provoca
+// "resource android:attr/lStar not found" al enlazar recursos en release.
+// Forzamos un compileSdk moderno solo para ese subproyecto.
+subprojects {
+    if (name == "printing") {
+        afterEvaluate {
+            extensions.findByName("android")?.withGroovyBuilder {
+                "compileSdkVersion"(35)
+            }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
