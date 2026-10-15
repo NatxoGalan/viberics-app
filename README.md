@@ -1,6 +1,14 @@
 # viberics_app
 
-A new Flutter project.
+Aplicación Flutter para la gestión de comandas de un bar.
+
+## Descarga del APK
+
+[![Descargar APK](https://img.shields.io/badge/Descargar-APK-blue?logo=android)](https://github.com/NatxoGalan/viberics-app/releases/latest)
+
+Puedes descargar la última versión instalable desde la
+[página de releases](https://github.com/NatxoGalan/viberics-app/releases/latest)
+(archivo `viberics-app.apk`).
 
 ## Getting Started
 
